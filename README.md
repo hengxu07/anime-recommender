@@ -74,6 +74,7 @@ imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
 - Added `precision_at_k()` — Precision@10 metric for objective, reproducible evaluation
 - Added grid search across 60 weight combinations; confirmed current weights are in optimal region
 - Added log-scaled runtime as a feature (weight 1×) — films now recommend films, series recommend series
+- Added normalised release year as a feature (weight 1×) — era similarity creates 16-year mean gap between 1989 and 2019 show recommendations
 - Baseline Precision@10: 96%
 
 ### Phase 1 — Polish & Usability
