@@ -7,7 +7,7 @@ Given an anime title, it returns the most similar anime based on genre, rating, 
 ## How it works
 
 1. Loads and cleans an IMDb anime dataset (~6,800 unique series)
-2. One-hot encodes genres and normalizes ratings and vote counts
+2. One-hot encodes genres and normalises ratings, vote counts, and runtime
 3. Builds a cosine similarity matrix across all titles
 4. At query time: fuzzy-matches the input title, then filters and ranks results
 
@@ -69,6 +69,12 @@ imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
 ```
 
 ## Changelog
+
+### Phase 2 — Better Recommendations
+- Added `precision_at_k()` — Precision@10 metric for objective, reproducible evaluation
+- Added grid search across 60 weight combinations; confirmed current weights are in optimal region
+- Added log-scaled runtime as a feature (weight 1×) — films now recommend films, series recommend series
+- Baseline Precision@10: 96%
 
 ### Phase 1 — Polish & Usability
 - Added fuzzy title search via `rapidfuzz` (tolerates typos and missing punctuation)
