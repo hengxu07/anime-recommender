@@ -7,9 +7,10 @@ Given an anime title, it returns the most similar anime based on genre, rating, 
 ## How it works
 
 1. Loads and cleans an IMDb anime dataset (~6,800 unique series)
-2. One-hot encodes genres and normalises ratings, vote counts, and runtime
-3. Builds a cosine similarity matrix across all titles
-4. At query time: fuzzy-matches the input title, then filters and ranks results
+2. One-hot encodes genres and normalises ratings, vote counts, runtime, and release year
+3. Adds TF-IDF vectors (300 dimensions) from plot summaries as a content signal
+4. Builds a cosine similarity matrix across all titles
+5. At query time: fuzzy-matches the input title, then filters and ranks results
 
 ## Usage
 
@@ -69,6 +70,11 @@ imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
 ```
 
 ## Changelog
+
+### Phase 3 — Understanding What Shows Are About
+- Added TF-IDF on plot summaries (300 dimensions, weight 0.5×) — model now uses plot content, not just genre tags
+- Feature matrix grows from 26 → 326 columns; Precision@10 stays at 96% (TF-IDF adds plot signal without hurting genre accuracy)
+- NGE and One Piece now return different recommendation sets despite sharing the same `Action, Adventure` genre tags
 
 ### Phase 2 — Better Recommendations
 - Added `precision_at_k()` — Precision@10 metric for objective, reproducible evaluation
