@@ -46,6 +46,7 @@ recommend("Attack on Titan", genre="Action", after=2010, min_votes=500)
 | `min_votes` | int | 50 | Exclude titles with fewer votes than this |
 | `after` | int | None | Only return titles released after this year |
 | `before` | int | None | Only return titles released before this year |
+| `popularity_weight` | float | 0.1 | Blend similarity with rating quality (0.0 = pure similarity, 1.0 = pure rating) |
 
 ## Setup
 
@@ -72,9 +73,9 @@ imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
 ## Changelog
 
 ### Phase 3 — Understanding What Shows Are About
-- Added TF-IDF on plot summaries (300 dimensions, weight 0.5×) — model now uses plot content, not just genre tags
-- Feature matrix grows from 26 → 326 columns; Precision@10 stays at 96% (TF-IDF adds plot signal without hurting genre accuracy)
-- NGE and One Piece now return different recommendation sets despite sharing the same `Action, Adventure` genre tags
+- Added `popularity_weight` parameter (default 0.1) — hybrid score blends content similarity with rating quality so highly-rated shows rank above equally-similar lower-rated ones
+- Used Rating Norm (not votes) as the popularity signal to avoid audience mismatch: Pixar films have high IMDb vote counts but low anime-community ratings, so votes would surface wrong results
+- Added TF-IDF on plot summaries (300 dimensions, weight 0.5×) — architecture in place for Phase 5 sentence embeddings; adds minimal signal on these short (15–35 word) summaries
 
 ### Phase 2 — Better Recommendations
 - Added `precision_at_k()` — Precision@10 metric for objective, reproducible evaluation
