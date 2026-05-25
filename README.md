@@ -73,6 +73,7 @@ imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
 ## Changelog
 
 ### Phase 3 — Understanding What Shows Are About
+- Added PCA visualisation (326 → 2 dimensions, 39.7% variance explained) — scatter plot confirms clusters form real spatial groups; Cluster 2 (Action/Adventure) sits isolated far right, comedy clusters group upper-left, shorts cluster at bottom
 - Added K-Means clustering (K=20) — groups anime into 20 clusters; validated recommender achieves 10/10 same-cluster results for AoT, Spirited Away, and NGE
 - Added `popularity_weight` parameter (default 0.1) — hybrid score blends content similarity with rating quality so highly-rated shows rank above equally-similar lower-rated ones
 - Used Rating Norm (not votes) as the popularity signal to avoid audience mismatch: Pixar films have high IMDb vote counts but low anime-community ratings, so votes would surface wrong results
