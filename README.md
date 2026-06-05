@@ -2,10 +2,11 @@
 
 A hybrid anime recommender combining content-based filtering and collaborative filtering, built with Python and deployed as a Streamlit web app.
 
-Given an anime title, it returns similar anime via two signals:
+Three modes:
 
-- **Content Match** — cosine similarity on genre tags, rating, runtime, release year, and sentence embeddings of plot summaries (~6,800 IMDb titles)
-- **Fans Also Watched** — item-item collaborative filtering from 42M real user ratings on MyAnimeList (267K users, 13K anime)
+- **Find Similar** — given one title, returns the most similar anime via content features and audience overlap
+- **For You** — given your full watch history and ratings, builds a personalised taste profile and recommends what to watch next
+- **My List** — persistent tracker (Title, Rating, Status) saved locally to `watchlist.json`; feeds directly into For You
 
 ## How it works
 
@@ -21,6 +22,12 @@ Given an anime title, it returns similar anime via two signals:
 2. Builds a sparse user-item matrix with `scipy` (169 MB vs 13.8 GB dense equivalent)
 3. Computes item-item cosine similarity across all 13K anime
 4. At query time: looks up the anime's row in the similarity matrix and returns the top-N closest titles
+
+**Personalised recommendations (For You)**
+1. Reads your watch history from `watchlist.json` (managed via My List tab)
+2. For each rated title, looks up its similarity row and multiplies by your rating (higher-rated shows influence the profile more)
+3. Sums all weighted rows into a single taste profile vector
+4. Returns the top-N titles closest to that profile, excluding anything already in your list
 
 ## Usage
 
@@ -90,23 +97,36 @@ streamlit run app.py
 streamlit run app.py
 ```
 
-Opens a browser UI at `http://localhost:8501`. Type an anime title, pick filters from the sidebar, and press Enter or click the button.
+Opens a browser UI at `http://localhost:8501` with three tabs:
+- **Find Similar** — search by title with genre/year/votes filters
+- **For You** — personalised picks from your watch history
+- **My List** — add/edit/rate anime, saved to `watchlist.json`
 
 ## Project Structure
 
 ```
-app.py                # Streamlit web app — Content Match + Fans Also Watched tabs
-recommender.py        # all model logic — load_model, recommend, load_cf_model, cf_recommend
+app.py                # Streamlit web app — Find Similar, For You, My List tabs
+recommender.py        # all model logic — load_model, recommend, profile_recommend,
+                      #                   load_cf_model, cf_recommend, cf_profile_recommend
 build_embeddings.py   # one-time: compute sentence embeddings → embeddings.npy
 build_cf.py           # one-time: build CF similarity matrix → cf_similarity.npy
 anime_project.ipynb   # exploration notebook — data cleaning, modelling, analysis
 requirements.txt      # pinned dependencies
+watchlist.json        # your personal watch list (created on first save; not tracked in git)
 imdb_anime.csv        # IMDb dataset (not tracked — download from Kaggle)
 AnimeList.csv         # MAL anime metadata (not tracked — download from Kaggle)
 UserAnimeList.csv     # MAL user ratings, ~5 GB (not tracked — download from Kaggle)
 ```
 
 ## Changelog
+
+### Phase 7 — Personalised Recommendations & Watch Tracker
+- Added `profile_recommend()` — content-based personalised recommendations via weighted item aggregation: each rated title contributes its similarity row scaled by rating, summed into a taste profile
+- Added `cf_profile_recommend()` — same approach using the CF similarity matrix
+- New **My List** tab: editable tracker with Title, Rating (1–10), Status (Completed / Watching / Plan to Watch / Dropped); persists to `watchlist.json`
+- New **For You** tab: reads saved list automatically, filters to Completed/Watching entries with ratings, runs both content and CF recommendations
+- Scores normalised to 0–1 range (divided by top result's raw score)
+- Sequel/spinoff filter applied to personalised results — same logic as single-title search
 
 ### Phase 6 — Collaborative Filtering
 - Added item-item CF from 42M MAL user ratings (267K users, 13K anime)
