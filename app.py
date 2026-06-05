@@ -14,13 +14,19 @@ def get_model():
 
 @st.cache_resource
 def get_cf_model():
-    return load_cf_model()
+    try:
+        return load_cf_model()
+    except FileNotFoundError:
+        return None
 
 
 with st.spinner("Loading model (one-time, ~20 seconds)..."):
     df_clean, feature_df2, similarity_matrix2 = get_model()
 
-cf_sim, cf_anime_enc, cf_idx_to_anime, cf_id_to_meta, cf_title_to_id = get_cf_model()
+cf_model      = get_cf_model()
+cf_available  = cf_model is not None
+if cf_available:
+    cf_sim, cf_anime_enc, cf_idx_to_anime, cf_id_to_meta, cf_title_to_id = cf_model
 
 all_genres = sorted({
     g.strip()
@@ -94,27 +100,33 @@ if search:
 
         # ── Tab 2: collaborative filtering ────────────────────────────────────
         with tab2:
-            cf_result, cf_note = cf_recommend(
-                title,
-                cf_sim, cf_anime_enc, cf_idx_to_anime,
-                cf_id_to_meta, cf_title_to_id,
-                n=n,
-            )
-
-            if cf_result is None:
-                st.error(cf_note)
-            else:
-                if cf_note:
-                    st.info(f'Showing results for **{cf_note}** (fuzzy match for "{title}")')
-                else:
-                    st.success(f'Showing results for **{title}**')
-
-                st.dataframe(
-                    cf_result,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "CF Similarity": st.column_config.NumberColumn(format="%.3f"),
-                        "MAL Score":     st.column_config.NumberColumn(format="%.2f"),
-                    }
+            if not cf_available:
+                st.info(
+                    "Collaborative filtering requires the MAL dataset. "
+                    "Run `python build_cf.py` locally to enable this tab."
                 )
+            else:
+                cf_result, cf_note = cf_recommend(
+                    title,
+                    cf_sim, cf_anime_enc, cf_idx_to_anime,
+                    cf_id_to_meta, cf_title_to_id,
+                    n=n,
+                )
+
+                if cf_result is None:
+                    st.error(cf_note)
+                else:
+                    if cf_note:
+                        st.info(f'Showing results for **{cf_note}** (fuzzy match for "{title}")')
+                    else:
+                        st.success(f'Showing results for **{title}**')
+
+                    st.dataframe(
+                        cf_result,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "CF Similarity": st.column_config.NumberColumn(format="%.3f"),
+                            "MAL Score":     st.column_config.NumberColumn(format="%.2f"),
+                        }
+                    )
