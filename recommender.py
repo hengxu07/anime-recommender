@@ -144,6 +144,9 @@ def recommend(title, df_clean, feature_df2, similarity_matrix2,
             continue
         if before and row['Year'] > before:
             continue
+        # Skip sequels/seasons — result title contains the query title as a substring
+        if matched_title.lower() in row['Title'].lower():
+            continue
 
         # Hybrid score: blend content similarity with rating quality.
         # Uses Rating Norm (not Votes Norm) to avoid audience mismatch —
