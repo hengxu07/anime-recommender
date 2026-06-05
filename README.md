@@ -53,19 +53,20 @@ recommend("Attack on Titan", genre="Action", after=2010, min_votes=500)
 ```bash
 pip install -r requirements.txt
 python build_embeddings.py   # one-time: downloads model (~90 MB) and builds embeddings.npy
+python build_cf.py           # one-time: reads UserAnimeList.csv (~5 GB) and builds cf_similarity.npy
 ```
 
-Then either open `anime_project.ipynb` in Jupyter, or run the web app:
+Then run the web app:
 
 ```bash
 streamlit run app.py
 ```
 
-## Dataset
+## Datasets
 
-Data sourced from Kaggle: [Japanese Anime: An In-Depth IMDb Data Set](https://www.kaggle.com/datasets/lorentzyeung/all-japanese-anime-titles-in-imdb) by Lorentz Yeung.
+**Content model** — [Japanese Anime: An In-Depth IMDb Data Set](https://www.kaggle.com/datasets/lorentzyeung/all-japanese-anime-titles-in-imdb) by Lorentz Yeung. Place as `imdb_anime.csv`.
 
-The CSV is not included in this repo. Download it from Kaggle and place it in the project root as `imdb_anime.csv`.
+**Collaborative filtering** — MyAnimeList dataset from Kaggle. Place as `AnimeList.csv`, `UserAnimeList.csv`, and `UserList.csv`.
 
 ## Web App
 
@@ -78,14 +79,26 @@ Opens a browser UI at `http://localhost:8501`. Type an anime title, pick filters
 ## Project Structure
 
 ```
-app.py                # Streamlit web app
-recommender.py        # model logic (load_model, recommend) — importable module
+app.py                # Streamlit web app — Content Match + Fans Also Watched tabs
+recommender.py        # all model logic — load_model, recommend, load_cf_model, cf_recommend
+build_embeddings.py   # one-time: compute sentence embeddings → embeddings.npy
+build_cf.py           # one-time: build CF similarity matrix → cf_similarity.npy
 anime_project.ipynb   # exploration notebook — data cleaning, modelling, analysis
 requirements.txt      # pinned dependencies
-imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
+imdb_anime.csv        # IMDb dataset (not tracked — download from Kaggle)
+AnimeList.csv         # MAL anime metadata (not tracked — download from Kaggle)
+UserAnimeList.csv     # MAL user ratings, ~5 GB (not tracked — download from Kaggle)
 ```
 
 ## Changelog
+
+### Phase 6 — Collaborative Filtering
+- Added item-item CF from 42M MAL user ratings (267K users, 13K anime)
+- Sparse user-item matrix built with scipy (169 MB vs 13.8 GB dense equivalent)
+- CF similarity matrix pre-computed via `build_cf.py` and saved to `cf_similarity.npy`
+- Streamlit app updated with two tabs: **Content Match** (genre/plot features) and **Fans Also Watched** (audience overlap)
+- Both JP and EN titles shown in CF results
+- Spirited Away CF results surface the full Studio Ghibli catalogue — audience pattern content features cannot replicate
 
 ### Phase 5 — Sentence Embeddings
 - Replaced TF-IDF with `sentence-transformers` (`all-MiniLM-L6-v2`, 384 dimensions) — encodes meaning, not word overlap

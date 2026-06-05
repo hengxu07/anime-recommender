@@ -3,3 +3,5 @@ venv/
 .ipynb_checkpoints/
 __pycache__/
 embeddings.npy
+cf_similarity.npy
+.DS_Store

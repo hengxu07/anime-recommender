@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
@@ -165,5 +166,87 @@ def recommend(title, df_clean, feature_df2, similarity_matrix2,
 
     if not results:
         return None, "No results matched your filters. Try relaxing genre, year, or min_votes."
+
+    return pd.DataFrame(results), fuzzy_note
+
+
+def load_cf_model(meta_path='cf_anime_meta.csv',
+                  sim_path='cf_similarity.npy',
+                  enc_path='cf_anime_enc.json'):
+    """
+    Load pre-computed CF artifacts from disk.
+    Returns (cf_sim, anime_enc, idx_to_anime, id_to_meta, title_to_id).
+    Call once at startup and cache the result.
+    """
+    cf_meta = pd.read_csv(meta_path)
+    cf_sim  = np.load(sim_path)
+
+    with open(enc_path) as f:
+        anime_enc = {int(k): v for k, v in json.load(f).items()}
+    idx_to_anime = {v: k for k, v in anime_enc.items()}
+
+    id_to_meta = cf_meta.set_index('anime_id')
+
+    # Build title → anime_id lookup covering both JP and EN titles
+    title_to_id = cf_meta.set_index('title')['anime_id'].to_dict()
+    en = cf_meta.dropna(subset=['title_english'])
+    title_to_id.update(en.set_index('title_english')['anime_id'].to_dict())
+
+    return cf_sim, anime_enc, idx_to_anime, id_to_meta, title_to_id
+
+
+def cf_recommend(title, cf_sim, anime_enc, idx_to_anime, id_to_meta, title_to_id, n=10):
+    """
+    Return the top-n anime whose audiences overlap most with `title`.
+    Searches both Japanese (romaji) and English titles.
+
+    Returns
+    -------
+    (pd.DataFrame, matched_title) on success
+    (None, error_message) on failure
+    """
+    all_titles = list(title_to_id.keys())
+
+    exact = [t for t in all_titles if t.lower() == title.lower()]
+    if exact:
+        matched_title = exact[0]
+        fuzzy_note = None
+    else:
+        result = process.extractOne(title, all_titles)
+        if result is None:
+            return None, f"No match found for '{title}'."
+        matched_title, score, _ = result
+        if score < 80:
+            return None, (
+                f"No confident match for '{title}'. "
+                f"Closest: '{matched_title}' ({score:.0f}/100)."
+            )
+        fuzzy_note = matched_title
+
+    anime_id = title_to_id[matched_title]
+    if anime_id not in anime_enc:
+        return None, f"'{matched_title}' has no ratings data."
+
+    idx    = anime_enc[anime_id]
+    scores = cf_sim[idx]
+    top_idx = scores.argsort()[::-1][1:n + 1]
+
+    results = []
+    for i in top_idx:
+        aid = idx_to_anime[i]
+        if aid not in id_to_meta.index:
+            continue
+        meta = id_to_meta.loc[aid]
+        en_title = meta['title_english'] if pd.notna(meta['title_english']) else ''
+        results.append({
+            'Title JP':      meta['title'],
+            'Title EN':      en_title,
+            'CF Similarity': round(float(scores[i]), 3),
+            'MAL Score':     meta['score'],
+            'Genre':         meta['genre'],
+        })
+
+    if not results:
+        return None, "No results found."
 
     return pd.DataFrame(results), fuzzy_note
