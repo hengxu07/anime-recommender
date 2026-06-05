@@ -1,7 +1,24 @@
+import json
+import os
 import pandas as pd
 import streamlit as st
 from recommender import (load_model, recommend, load_cf_model, cf_recommend,
                          profile_recommend, cf_profile_recommend)
+
+WATCHLIST_PATH = 'watchlist.json'
+STATUSES = ['Completed', 'Watching', 'Plan to Watch', 'Dropped']
+
+
+def _load_watchlist():
+    if os.path.exists(WATCHLIST_PATH):
+        with open(WATCHLIST_PATH) as f:
+            return json.load(f)
+    return []
+
+
+def _save_watchlist(records):
+    with open(WATCHLIST_PATH, 'w') as f:
+        json.dump(records, f, indent=2)
 
 st.set_page_config(page_title="Anime Recommender",
                    page_icon="🎌", layout="wide")
@@ -61,8 +78,12 @@ with st.sidebar:
     )
 
 
+# ── Watchlist: load once into session state ───────────────────────────────────
+if 'watchlist' not in st.session_state:
+    st.session_state.watchlist = _load_watchlist()
+
 # ── Top-level mode tabs ───────────────────────────────────────────────────────
-mode_tab1, mode_tab2 = st.tabs(["Find Similar", "For You"])
+mode_tab1, mode_tab2, mode_tab3 = st.tabs(["Find Similar", "For You", "My List"])
 
 
 # ── Mode 1: single-title search ───────────────────────────────────────────────
@@ -139,57 +160,36 @@ with mode_tab1:
                         )
 
 
-# ── Mode 2: personalised recommendations from watch history ───────────────────
+# ── Mode 2: For You ───────────────────────────────────────────────────────────
 with mode_tab2:
-    st.write("Enter anime you've already watched and rate each one. "
-             "The recommender builds a taste profile from your history.")
+    ratable = [
+        r for r in st.session_state.watchlist
+        if r.get('Status') in ('Completed', 'Watching')
+        and r.get('Rating') is not None
+        and str(r.get('Title', '')).strip()
+    ]
 
-    default_history = pd.DataFrame({
-        'Anime Title':        [''] * 5,
-        'Your Rating (1-10)': [None] * 5,
-    })
-    history = st.data_editor(
-        default_history,
-        num_rows='dynamic',
-        use_container_width=True,
-        column_config={
-            'Your Rating (1-10)': st.column_config.NumberColumn(
-                min_value=1, max_value=10, step=1,
-            ),
-        },
-    )
+    if not ratable:
+        st.info("Add anime to **My List** with a rating to get personalised recommendations.")
+    else:
+        st.write(f"Building recommendations from **{len(ratable)} rated titles** in your list.")
+        run_profile = st.button("Get my recommendations", type="primary")
 
-    run_profile = st.button("Get my recommendations", type="primary")
-
-    if run_profile:
-        user_ratings = {}
-        for _, row in history.iterrows():
-            t = str(row['Anime Title']).strip()
-            r = row['Your Rating (1-10)']
-            if t and r is not None:
-                try:
-                    rating = float(r)
-                    if 1 <= rating <= 10:
-                        user_ratings[t] = rating
-                except (ValueError, TypeError):
-                    pass
-
-        if not user_ratings:
-            st.warning("Enter at least one anime title with a rating (1–10).")
-        else:
+        if run_profile:
+            user_ratings = {r['Title']: float(r['Rating']) for r in ratable}
             ptab1, ptab2 = st.tabs(["Content Match", "Fans Also Watched"])
 
             with ptab1:
                 p_result, p_unmatched = profile_recommend(
-                    user_ratings, df_clean, feature_df2, similarity_matrix2, n=n,
-                    min_votes=int(min_votes),
+                    user_ratings, df_clean, feature_df2, similarity_matrix2,
+                    n=n, min_votes=int(min_votes),
                 )
                 if p_result is None:
                     st.error(p_unmatched)
                 else:
                     if p_unmatched:
                         st.warning(f"Couldn't match: {', '.join(p_unmatched)} — skipped.")
-                    st.success(f"Recommendations based on {len(user_ratings)} titles in your history.")
+                    st.success(f"Recommendations based on {len(user_ratings)} titles.")
                     st.dataframe(
                         p_result,
                         use_container_width=True,
@@ -219,7 +219,7 @@ with mode_tab2:
                     else:
                         if cf_p_unmatched:
                             st.warning(f"Couldn't match: {', '.join(cf_p_unmatched)} — skipped.")
-                        st.success(f"Recommendations based on {len(user_ratings)} titles in your history.")
+                        st.success(f"Recommendations based on {len(user_ratings)} titles.")
                         st.dataframe(
                             cf_p_result,
                             use_container_width=True,
@@ -229,3 +229,48 @@ with mode_tab2:
                                 "MAL Score": st.column_config.NumberColumn(format="%.2f"),
                             }
                         )
+
+
+# ── Mode 3: My List ───────────────────────────────────────────────────────────
+with mode_tab3:
+    st.write("Track every anime you've watched, are watching, or plan to watch.")
+
+    existing = st.session_state.watchlist
+    if existing:
+        wl_df = pd.DataFrame(existing)
+    else:
+        wl_df = pd.DataFrame(columns=['Title', 'Rating', 'Status'])
+
+    edited_wl = st.data_editor(
+        wl_df,
+        num_rows='dynamic',
+        use_container_width=True,
+        column_config={
+            'Title':  st.column_config.TextColumn(),
+            'Rating': st.column_config.NumberColumn(
+                min_value=1, max_value=10, step=1,
+                help="1–10. Leave blank for Plan to Watch entries."
+            ),
+            'Status': st.column_config.SelectboxColumn(
+                options=STATUSES,
+                required=True,
+            ),
+        },
+    )
+
+    if st.button("Save list", type="primary"):
+        records = []
+        for _, row in edited_wl.iterrows():
+            title = str(row.get('Title', '')).strip()
+            if not title:
+                continue
+            rating = row.get('Rating')
+            status = row.get('Status') or 'Plan to Watch'
+            records.append({
+                'Title':  title,
+                'Rating': float(rating) if rating is not None else None,
+                'Status': status,
+            })
+        _save_watchlist(records)
+        st.session_state.watchlist = records
+        st.success(f"Saved {len(records)} titles to watchlist.json.")

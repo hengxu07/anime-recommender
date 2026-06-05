@@ -5,3 +5,4 @@ venv/
 __pycache__/
 cf_similarity.npy
 .DS_Store
+watchlist.json

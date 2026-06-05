@@ -209,6 +209,7 @@ def profile_recommend(user_ratings, df_clean, feature_df2, similarity_matrix2,
     # Build a weighted aggregate of each watched anime's similarity row.
     # Higher-rated shows in your history pull the profile harder.
     watched_indices = {idx for idx, _ in resolved.values()}
+    watched_titles_lower = {t.lower() for t in resolved}
     agg = np.zeros(len(df_clean))
     for _, (idx, weight) in resolved.items():
         agg += similarity_matrix2[idx] * weight
@@ -219,6 +220,8 @@ def profile_recommend(user_ratings, df_clean, feature_df2, similarity_matrix2,
             continue
         row = df_clean.iloc[i]
         if row['Number of Votes'] < min_votes:
+            continue
+        if any(wt in row['Title'].lower() for wt in watched_titles_lower):
             continue
         results.append({
             'Title':  row['Title'],
@@ -233,6 +236,10 @@ def profile_recommend(user_ratings, df_clean, feature_df2, similarity_matrix2,
 
     if not results:
         return None, "No results found. Try lowering min_votes."
+
+    max_score = results[0]['Score']
+    for r in results:
+        r['Score'] = round(r['Score'] / max_score, 3)
 
     return pd.DataFrame(results), unmatched
 
@@ -300,6 +307,10 @@ def cf_profile_recommend(user_ratings, cf_sim, anime_enc, idx_to_anime,
 
     if not results:
         return None, "No results found."
+
+    max_score = results[0]['CF Score']
+    for r in results:
+        r['CF Score'] = round(r['CF Score'] / max_score, 3)
 
     return pd.DataFrame(results), unmatched
 
