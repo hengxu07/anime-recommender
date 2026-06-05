@@ -173,6 +173,137 @@ def recommend(title, df_clean, feature_df2, similarity_matrix2,
     return pd.DataFrame(results), fuzzy_note
 
 
+def profile_recommend(user_ratings, df_clean, feature_df2, similarity_matrix2,
+                      n=10, min_votes=50):
+    """
+    Personalised content-based recommendations from a watch history.
+
+    Parameters
+    ----------
+    user_ratings : dict of {title: rating} where rating is 1–10
+    Returns (pd.DataFrame, unmatched_titles) on success, (None, error_message) on failure.
+    """
+    all_titles = feature_df2['Title'].tolist()
+    max_rating = max(user_ratings.values()) if user_ratings else 1
+
+    resolved   = {}   # matched_title → (row_index, weight)
+    unmatched  = []
+
+    for title, rating in user_ratings.items():
+        exact = [t for t in all_titles if t.lower() == title.lower()]
+        if exact:
+            matched = exact[0]
+        else:
+            result = process.extractOne(title, all_titles)
+            if result is None or result[1] < 80:
+                unmatched.append(title)
+                continue
+            matched = result[0]
+        idx    = feature_df2[feature_df2['Title'] == matched].index[0]
+        weight = rating / max_rating   # normalise so best-rated show = 1.0
+        resolved[matched] = (idx, weight)
+
+    if not resolved:
+        return None, "None of the titles could be matched. Check for typos."
+
+    # Build a weighted aggregate of each watched anime's similarity row.
+    # Higher-rated shows in your history pull the profile harder.
+    watched_indices = {idx for idx, _ in resolved.values()}
+    agg = np.zeros(len(df_clean))
+    for _, (idx, weight) in resolved.items():
+        agg += similarity_matrix2[idx] * weight
+
+    results = []
+    for i in agg.argsort()[::-1]:
+        if i in watched_indices:
+            continue
+        row = df_clean.iloc[i]
+        if row['Number of Votes'] < min_votes:
+            continue
+        results.append({
+            'Title':  row['Title'],
+            'Score':  round(float(agg[i]), 3),
+            'Rating': round(row['User Rating'], 1),
+            'Votes':  int(row['Number of Votes']),
+            'Year':   int(row['Year']),
+            'Genres': row['Genre'],
+        })
+        if len(results) >= n:
+            break
+
+    if not results:
+        return None, "No results found. Try lowering min_votes."
+
+    return pd.DataFrame(results), unmatched
+
+
+def cf_profile_recommend(user_ratings, cf_sim, anime_enc, idx_to_anime,
+                         id_to_meta, title_to_id, n=10):
+    """
+    Personalised CF recommendations from a watch history.
+
+    Parameters
+    ----------
+    user_ratings : dict of {title: rating} where rating is 1–10
+    Returns (pd.DataFrame, unmatched_titles) on success, (None, error_message) on failure.
+    """
+    all_titles = list(title_to_id.keys())
+    max_rating = max(user_ratings.values()) if user_ratings else 1
+
+    resolved  = {}   # matched_title → (anime_id, row_index, weight)
+    unmatched = []
+
+    for title, rating in user_ratings.items():
+        exact = [t for t in all_titles if t.lower() == title.lower()]
+        if exact:
+            matched = exact[0]
+        else:
+            result = process.extractOne(title, all_titles)
+            if result is None or result[1] < 80:
+                unmatched.append(title)
+                continue
+            matched = result[0]
+        anime_id = title_to_id[matched]
+        if anime_id not in anime_enc:
+            unmatched.append(title)
+            continue
+        idx    = anime_enc[anime_id]
+        weight = rating / max_rating
+        resolved[matched] = (anime_id, idx, weight)
+
+    if not resolved:
+        return None, "None of the titles could be matched. Check for typos."
+
+    watched_ids = {aid for aid, _, _ in resolved.values()}
+    agg = np.zeros(cf_sim.shape[0])
+    for _, (_, idx, weight) in resolved.items():
+        agg += cf_sim[idx] * weight
+
+    results = []
+    for i in agg.argsort()[::-1]:
+        aid = idx_to_anime[i]
+        if aid in watched_ids:
+            continue
+        if aid not in id_to_meta.index:
+            continue
+        meta     = id_to_meta.loc[aid]
+        en_title = meta['title_english'] if pd.notna(meta['title_english']) else ''
+        results.append({
+            'Title JP': meta['title'],
+            'Title EN': en_title,
+            'CF Score': round(float(agg[i]), 3),
+            'MAL Score': meta['score'],
+            'Genre':    meta['genre'],
+        })
+        if len(results) >= n:
+            break
+
+    if not results:
+        return None, "No results found."
+
+    return pd.DataFrame(results), unmatched
+
+
 def load_cf_model(meta_path='cf_anime_meta.csv',
                   sim_path='cf_similarity.npy',
                   enc_path='cf_anime_enc.json'):
