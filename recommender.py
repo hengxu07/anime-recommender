@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 from rapidfuzz import process
 
@@ -52,21 +51,19 @@ def load_model(csv_path='imdb_anime.csv'):
     year_norm = (df_clean['Year'] - df_clean['Year'].min()) / \
                 (df_clean['Year'].max() - df_clean['Year'].min())
 
-    # ── TF-IDF on plot summaries ──────────────────────────────────────────────
-    # Note: summaries are short (15-35 words), so TF-IDF adds minimal signal.
-    # Architecture is ready for Phase 5 where sentence embeddings replace it.
-    summary_map = df.drop_duplicates(subset='Title', keep='first').set_index('Title')['Summary']
-    df_clean['Summary'] = df_clean['Title'].map(summary_map).fillna('')
-
-    tfidf = TfidfVectorizer(max_features=300, stop_words='english')
-    tfidf_matrix = tfidf.fit_transform(df_clean['Summary']).toarray()
-    tfidf_df = pd.DataFrame(
-        tfidf_matrix * 0.5,
-        columns=[f'tfidf_{i}' for i in range(tfidf_matrix.shape[1])]
+    # ── Sentence embeddings ───────────────────────────────────────────────────
+    # Pre-computed by build_embeddings.py — load from disk instead of recomputing.
+    # Shape: (n_anime, 384). Each row is an L2-normalised 384-dim vector encoding
+    # the *meaning* of the plot summary, not just word overlap like TF-IDF did.
+    embeddings = np.load('embeddings.npy')
+    embedding_weight = 1.0
+    embedding_df = pd.DataFrame(
+        embeddings * embedding_weight,
+        columns=[f'emb_{i}' for i in range(embeddings.shape[1])]
     )
 
     # ── Build feature matrix ──────────────────────────────────────────────────
-    # Weights: genres 3x (dominant signal), numeric features 1x, TF-IDF 0.5x
+    # Weights: genres 3x (dominant signal), numeric features 1x, embeddings 1x
     feature_df2 = pd.concat([
         df_clean[['Title']].reset_index(drop=True),
         (rating_norm    * 1.0).rename('Rating Norm').reset_index(drop=True),
@@ -74,7 +71,7 @@ def load_model(csv_path='imdb_anime.csv'):
         (runtime_norm   * 1.0).rename('Runtime Norm').reset_index(drop=True),
         (year_norm      * 1.0).rename('Year Norm').reset_index(drop=True),
         (genre_dummies  * 3.0).reset_index(drop=True),
-        tfidf_df.reset_index(drop=True),
+        embedding_df.reset_index(drop=True),
     ], axis=1)
 
     feature_matrix2    = feature_df2.drop(columns=['Title']).values

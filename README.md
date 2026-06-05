@@ -52,9 +52,14 @@ recommend("Attack on Titan", genre="Action", after=2010, min_votes=500)
 
 ```bash
 pip install -r requirements.txt
+python build_embeddings.py   # one-time: downloads model (~90 MB) and builds embeddings.npy
 ```
 
-Then open `anime_project.ipynb` in Jupyter.
+Then either open `anime_project.ipynb` in Jupyter, or run the web app:
+
+```bash
+streamlit run app.py
+```
 
 ## Dataset
 
@@ -81,6 +86,12 @@ imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
 ```
 
 ## Changelog
+
+### Phase 5 — Sentence Embeddings
+- Replaced TF-IDF with `sentence-transformers` (`all-MiniLM-L6-v2`, 384 dimensions) — encodes meaning, not word overlap
+- Pre-computed embeddings saved to `embeddings.npy` via `build_embeddings.py` (run once; excluded from git)
+- Code Geass now ranks #3 for Neon Genesis Evangelion — previously shared zero TF-IDF vocabulary words despite identical genre/tone
+- Feature matrix: 411 columns (4 numeric + 22 genres at 3× + 384 embeddings at 1×)
 
 ### Phase 4 — Streamlit Web App
 - Extracted model logic from notebook into `recommender.py` (importable module with `load_model()` and `recommend()`)
