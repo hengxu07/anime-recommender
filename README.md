@@ -1,20 +1,36 @@
 # Anime Recommendation System
 
-A content-based anime recommender built with Python and pandas.
+A hybrid anime recommender combining content-based filtering and collaborative filtering, built with Python and deployed as a Streamlit web app.
 
-Given an anime title, it returns the most similar anime based on genre, rating, and popularity — with support for fuzzy search, genre filtering, vote thresholds, and year ranges.
+Given an anime title, it returns similar anime via two signals:
+
+- **Content Match** — cosine similarity on genre tags, rating, runtime, release year, and sentence embeddings of plot summaries (~6,800 IMDb titles)
+- **Fans Also Watched** — item-item collaborative filtering from 42M real user ratings on MyAnimeList (267K users, 13K anime)
 
 ## How it works
 
+**Content model**
 1. Loads and cleans an IMDb anime dataset (~6,800 unique series)
-2. One-hot encodes genres and normalises ratings, vote counts, runtime, and release year
-3. Adds TF-IDF vectors (300 dimensions) from plot summaries as a content signal
-4. Builds a cosine similarity matrix across all titles
-5. At query time: fuzzy-matches the input title, then filters and ranks results
+2. One-hot encodes genres (weighted 3×) and normalises ratings, vote counts, runtime, and release year
+3. Encodes plot summaries with `sentence-transformers` (`all-MiniLM-L6-v2`, 384 dims) — captures meaning, not word overlap
+4. Builds a cosine similarity matrix across the full 411-column feature matrix
+5. At query time: fuzzy-matches the input title, filters by genre/votes/year, ranks by hybrid score (similarity + rating quality)
+
+**Collaborative filtering model**
+1. Reads 42M rows of MAL user ratings from `UserAnimeList.csv` (completed + scored only)
+2. Builds a sparse user-item matrix with `scipy` (169 MB vs 13.8 GB dense equivalent)
+3. Computes item-item cosine similarity across all 13K anime
+4. At query time: looks up the anime's row in the similarity matrix and returns the top-N closest titles
 
 ## Usage
 
-Open `anime_project.ipynb` in Jupyter and run all cells. At the bottom, call `recommend()`:
+Run the web app:
+
+```bash
+streamlit run app.py
+```
+
+Or call `recommend()` directly from Python:
 
 ```python
 # Basic usage
