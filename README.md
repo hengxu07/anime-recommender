@@ -62,15 +62,32 @@ Data sourced from Kaggle: [Japanese Anime: An In-Depth IMDb Data Set](https://ww
 
 The CSV is not included in this repo. Download it from Kaggle and place it in the project root as `imdb_anime.csv`.
 
+## Web App
+
+```bash
+streamlit run app.py
+```
+
+Opens a browser UI at `http://localhost:8501`. Type an anime title, pick filters from the sidebar, and press Enter or click the button.
+
 ## Project Structure
 
 ```
-anime_project.ipynb   # main notebook — data cleaning, modelling, recommender
+app.py                # Streamlit web app
+recommender.py        # model logic (load_model, recommend) — importable module
+anime_project.ipynb   # exploration notebook — data cleaning, modelling, analysis
 requirements.txt      # pinned dependencies
 imdb_anime.csv        # dataset (not tracked in git — download from Kaggle)
 ```
 
 ## Changelog
+
+### Phase 4 — Streamlit Web App
+- Extracted model logic from notebook into `recommender.py` (importable module with `load_model()` and `recommend()`)
+- Built `app.py` Streamlit UI — search by title, genre dropdown, vote/year/popularity filters
+- Model cached with `@st.cache_resource` so the similarity matrix builds once on startup (~20s), not on every query
+
+
 
 ### Phase 3 — Understanding What Shows Are About
 - Added PCA visualisation (326 → 2 dimensions, 39.7% variance explained) — scatter plot confirms clusters form real spatial groups; Cluster 2 (Action/Adventure) sits isolated far right, comedy clusters group upper-left, shorts cluster at bottom

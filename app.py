@@ -1,0 +1,81 @@
+import streamlit as st
+from recommender import load_model, recommend
+
+st.set_page_config(page_title="Anime Recommender", page_icon="🎌", layout="wide")
+
+st.title("Anime Recommender")
+st.caption("Find anime similar to one you already love.")
+
+
+@st.cache_resource
+def get_model():
+    return load_model()
+
+
+with st.spinner("Loading model (one-time, ~20 seconds)..."):
+    df_clean, feature_df2, similarity_matrix2 = get_model()
+
+all_genres = sorted({
+    g.strip()
+    for genres in df_clean['Genre'].dropna()
+    for g in genres.split(', ')
+    if g.strip()
+})
+
+
+# ── Sidebar: filters ──────────────────────────────────────────────────────────
+with st.sidebar:
+    st.header("Filters")
+    n = st.slider("Number of results", min_value=5, max_value=25, value=10, step=5)
+    genre_choice = st.selectbox("Genre filter", options=["(any)"] + all_genres)
+    genre = None if genre_choice == "(any)" else genre_choice
+    min_votes = st.number_input("Minimum votes", min_value=0, value=50, step=50)
+    col1, col2 = st.columns(2)
+    after  = col1.number_input("Released after",  min_value=1900, max_value=2024, value=1900, step=1)
+    before = col2.number_input("Released before", min_value=1900, max_value=2024, value=2024, step=1)
+    popularity_weight = st.slider(
+        "Popularity weight",
+        min_value=0.0, max_value=1.0, value=0.1, step=0.05,
+        help="0 = pure content similarity, 1 = pure rating quality"
+    )
+
+
+# ── Main: search ──────────────────────────────────────────────────────────────
+with st.form("search_form"):
+    title = st.text_input("Enter an anime title", placeholder="e.g. Attack on Titan")
+    search = st.form_submit_button("Find recommendations", type="primary")
+
+if search:
+    if not title.strip():
+        st.warning("Please enter an anime title.")
+    else:
+        result, note = recommend(
+            title,
+            df_clean, feature_df2, similarity_matrix2,
+            n=n,
+            genre=genre,
+            min_votes=int(min_votes),
+            after=int(after) if after > 1900 else None,
+            before=int(before) if before < 2024 else None,
+            popularity_weight=float(popularity_weight),
+        )
+
+        if result is None:
+            st.error(note)
+        else:
+            if note:
+                st.info(f'Showing results for **{note}** (fuzzy match for "{title}")')
+            else:
+                st.success(f'Showing results for **{title}**')
+
+            st.dataframe(
+                result,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Score":      st.column_config.NumberColumn(format="%.3f"),
+                    "Similarity": st.column_config.NumberColumn(format="%.3f"),
+                    "Rating":     st.column_config.NumberColumn(format="%.1f"),
+                    "Votes":      st.column_config.NumberColumn(format="%d"),
+                }
+            )
